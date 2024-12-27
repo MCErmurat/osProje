@@ -217,3 +217,10 @@ int main() {
                     background_processes += pipe_count + 1;  // Arka planda çalışan işlem sayısını artır
                 }
             }
+             if (input_fd != -1) close(input_fd);  // Eğer giriş dosyası açıksa, kapat
+            if (output_fd != -1) close(output_fd);  // Eğer çıkış dosyası açıksa, kapat
+        }
+    }
+    
+    return 0;
+}
