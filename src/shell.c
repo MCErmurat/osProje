@@ -125,3 +125,95 @@ int main() {
                     args[k] = NULL;
                 }
             }
+            if (pipe_count == 0) {
+                // Tek komut durumu (pipe yok)
+                pid_t pid = fork();  // Yeni bir çocuk işlem oluştur
+                
+                if (pid == 0) {
+                    // Çocuk proses
+                    if (input_fd != -1) {
+                        dup2(input_fd, STDIN_FILENO);  // Giriş yönlendirme
+                        close(input_fd);
+                    }
+                    if (output_fd != -1) {
+                        dup2(output_fd, STDOUT_FILENO);  // Çıktı yönlendirme
+                        close(output_fd);
+                    }
+                    
+                    execvp(args[0], args);  // Komutu çalıştır
+                    perror("execvp");  // Eğer execvp başarısız olursa hata mesajı yazdır
+                    exit(1);
+                } else {
+                    // Ebeveyn proses
+                    if (!background) {
+                        waitpid(pid, NULL, 0);  // Arka planda değilse, çocuk işlemin bitmesini bekle
+                    } else {
+                        background_processes++;  // Arka planda çalışacaksa sayacı artır
+                    }
+                }
+            } else {
+                // Pipe durumu
+                int pipes[pipe_count][2];  // Pipe'lar için dizi
+                for (int k = 0; k < pipe_count; k++) {
+                    pipe(pipes[k]);  // Her pipe için bir kanal oluştur
+                }
+
+                pid_t pids[pipe_count + 1];  // Pipe'lar için pid dizisi
+                char **cmd = args;
+                
+                for (int k = 0; k <= pipe_count; k++) {
+                    pids[k] = fork();  // Her komut için yeni bir çocuk işlem oluştur
+                    
+                    if (pids[k] == 0) {
+                        // İlk komut için giriş yönlendirme
+                        if (k == 0 && input_fd != -1) {
+                            dup2(input_fd, STDIN_FILENO);  // Giriş yönlendirme
+                            close(input_fd);
+                        }
+                        
+                        // Son komut için çıkış yönlendirme
+                        if (k == pipe_count && output_fd != -1) {
+                            dup2(output_fd, STDOUT_FILENO);  // Çıktı yönlendirme
+                            close(output_fd);
+                        }
+                        
+                        // Pipe bağlantıları
+                        if (k > 0) {
+                            dup2(pipes[k-1][0], STDIN_FILENO);  // Önceki pipe'ın çıkışını al
+                        }
+                        if (k < pipe_count) {
+                            dup2(pipes[k][1], STDOUT_FILENO);  // Şu anki pipe'ın girişine yaz
+                        }
+                        
+                        // Kullanılmayan pipe'ları kapat
+                        for (int l = 0; l < pipe_count; l++) {
+                            close(pipes[l][0]);
+                            close(pipes[l][1]);
+                        }
+                        
+                        execvp(cmd[0], cmd);  // Komutu çalıştır
+                        perror("execvp");  // Eğer execvp başarısız olursa hata mesajı yazdır
+                        exit(1);
+                    }
+                    
+                    // Bir sonraki komuta geç
+                    if (k < pipe_count) {
+                        cmd = &args[pipe_pos[k] + 1];
+                    }
+                }
+                
+                // Ebeveyn tüm pipe'ları kapatır
+                for (int k = 0; k < pipe_count; k++) {
+                    close(pipes[k][0]);
+                    close(pipes[k][1]);
+                }
+                
+                // Tüm çocuk prosesleri bekle
+                if (!background) {
+                    for (int k = 0; k <= pipe_count; k++) {
+                        waitpid(pids[k], NULL, 0);  // Çocuk işlemlerin bitmesini bekle
+                    }
+                } else {
+                    background_processes += pipe_count + 1;  // Arka planda çalışan işlem sayısını artır
+                }
+            }
