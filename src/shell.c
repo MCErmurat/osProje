@@ -76,4 +76,52 @@ int main() {
         }
         commands[cmd_count] = NULL;
 
-    
+    // Her komutu sırayla çalıştır
+        for (int i = 0; i < cmd_count; i++) {
+            char *token;
+            int j = 0;
+            char *args[MAX_ARGS];
+            
+            // Komutun parçalanması (tokenize)
+            token = strtok(commands[i], " ");
+            while (token != NULL && j < MAX_ARGS - 1) {
+                args[j++] = token;
+                token = strtok(NULL, " ");
+            }
+            args[j] = NULL;
+
+            // Arka planda çalışma kontrolü
+            int background = 0;
+            if (j > 0 && strcmp(args[j-1], "&") == 0) {
+                background = 1;  // "&" varsa arka planda çalışacak
+                args[--j] = NULL;  // "&" karakterini args'tan çıkar
+            }
+
+            // I/O yönlendirme ve pipe işlemleri için değişkenler
+            int input_fd = -1, output_fd = -1;
+            int pipe_count = 0;
+            int pipe_pos[MAX_ARGS];
+            
+            // I/O yönlendirme ve pipe pozisyonlarını bul
+            for (int k = 0; k < j; k++) {
+                if (strcmp(args[k], "<") == 0) {  // Girdi yönlendirme
+                    if (k + 1 < j) {
+                        input_fd = open(args[k+1], O_RDONLY);  // Dosyayı aç
+                        if (input_fd == -1) {
+                            printf("%s giriş dosyası bulunamadı.\n", args[k+1]);
+                            continue;
+                        }
+                        args[k] = NULL;
+                        k++;
+                    }
+                } else if (strcmp(args[k], ">") == 0) {  // Çıktı yönlendirme
+                    if (k + 1 < j) {
+                        output_fd = open(args[k+1], O_WRONLY | O_CREAT | O_TRUNC, 0644);  // Dosyayı aç veya oluştur
+                        args[k] = NULL;
+                        k++;
+                    }
+                } else if (strcmp(args[k], "|") == 0) {  // Pipe
+                    pipe_pos[pipe_count++] = k;  // Pipe pozisyonlarını kaydet
+                    args[k] = NULL;
+                }
+            }
