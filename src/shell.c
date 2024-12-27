@@ -65,5 +65,15 @@ int main() {
             }
             exit(0);  // Çıkış
         }
+        // Komutları noktalı virgülle ayır
+        char *commands[MAX_ARGS];
+        int cmd_count = 0;
+        
+        char *command = strtok(line, ";");
+        while (command != NULL && cmd_count < MAX_ARGS - 1) {
+            commands[cmd_count++] = command;
+            command = strtok(NULL, ";");
+        }
+        commands[cmd_count] = NULL;
 
     
